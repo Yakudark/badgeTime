@@ -28,7 +28,7 @@ import {
 moment.locale("fr");
 
 export default function Daily() {
-  const { triggerRefresh } = useWorkEntries();
+  const { triggerRefresh, shouldRefresh, lastUpdate } = useWorkEntries();
   const [currentDate] = useState(moment());
   const [isEditing, setIsEditing] = useState(false);
   const [isNewEntry, setIsNewEntry] = useState(true);
@@ -62,53 +62,71 @@ export default function Daily() {
     try {
       const yearMonth = currentDate.format("YYYY-MM");
       const entries = await getMonthlyTotal(yearMonth);
+      let totalMinutes = 0;
 
-      const totalMinutes = entries.reduce((acc, entry) => {
-        const times = {
-          start_time: entry.start_time
-            ? moment(entry.start_time, "HH:mm")
-            : null,
+      entries.forEach((entry) => {
+        if (!entry.start_time || !entry.end_time) return;
+
+        const dayTimes = {
+          start_time: moment(entry.start_time, "HH:mm"),
           pause_start: entry.pause_start
             ? moment(entry.pause_start, "HH:mm")
             : null,
           pause_end: entry.pause_end ? moment(entry.pause_end, "HH:mm") : null,
-          end_time: entry.end_time ? moment(entry.end_time, "HH:mm") : null,
+          end_time: moment(entry.end_time, "HH:mm"),
         };
-        const dayCalculations = calculateTimes(times);
-        const deltaStr = dayCalculations.deltaTime.replace(/[+]/g, "");
-        const [hours, minutes] = deltaStr
-          .split(":")
-          .map((num) => parseInt(num));
-        const deltaMinutes = hours * 60 + minutes;
 
-        return (
-          acc +
-          (dayCalculations.deltaTime.startsWith("-")
-            ? -deltaMinutes
-            : deltaMinutes)
-        );
-      }, 0);
+        const { deltaTime } = calculateTimes(dayTimes);
+        const [hourStr, minuteStr] = deltaTime.replace(/[+]/, "").split(":");
+        const hours = parseInt(hourStr);
+        const minutes = parseInt(minuteStr);
+
+        const dayMinutes =
+          (Math.abs(hours) * 60 + minutes) * (hours < 0 ? -1 : 1);
+        totalMinutes += dayMinutes;
+      });
+
+      const sign = totalMinutes >= 0 ? "+" : "-";
+      const absMinutes = Math.abs(totalMinutes);
+      const hours = Math.floor(absMinutes / 60);
+      const minutes = absMinutes % 60;
 
       setMonthlyOvertime(
-        `${totalMinutes >= 0 ? "+" : ""}${Math.floor(
-          Math.abs(totalMinutes) / 60
-        )}:${String(Math.abs(totalMinutes) % 60).padStart(2, "0")}`
+        `${sign}${hours.toString().padStart(2, "0")}:${minutes
+          .toString()
+          .padStart(2, "0")}`
       );
     } catch (error) {
       console.error("Error calculating monthly total:", error);
     }
   };
 
+  const resetForm = () => {
+    setTimes({
+      start_time: null,
+      start_time_input: "",
+      pause_start: null,
+      pause_start_input: "",
+      pause_end: null,
+      pause_end_input: "",
+      end_time: null,
+      end_time_input: "",
+    });
+    setIsNewEntry(true);
+    setIsEditing(false);
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
         await initDB();
-        await calculateMonthlyTotal();
         const dateStr = currentDate.format("YYYY-MM-DD");
         const entry = await getEntryByDate(dateStr);
+        await calculateMonthlyTotal();
 
         if (entry) {
           setIsNewEntry(false);
+          setIsEditing(false);
           setTimes({
             start_time: entry.start_time
               ? moment(entry.start_time, "HH:mm")
@@ -125,6 +143,8 @@ export default function Daily() {
             end_time: entry.end_time ? moment(entry.end_time, "HH:mm") : null,
             end_time_input: entry.end_time || "",
           });
+        } else {
+          resetForm();
         }
       } catch (error) {
         console.error("Error loading data:", error);
@@ -132,7 +152,7 @@ export default function Daily() {
     };
 
     loadData();
-  }, []);
+  }, [currentDate, shouldRefresh, lastUpdate]);
 
   const handleTimeInput = (type, value) => {
     const formattedTime = formatTimeInput(value);
@@ -163,7 +183,7 @@ export default function Daily() {
       setIsEditing(false);
       setIsNewEntry(false);
       await calculateMonthlyTotal();
-      triggerRefresh(); // Déclencher la mise à jour
+      triggerRefresh();
     } catch (error) {
       console.error("Error saving data:", error);
     }
@@ -177,19 +197,9 @@ export default function Daily() {
     try {
       const dateStr = currentDate.format("YYYY-MM-DD");
       await deleteEntry(dateStr);
-      setIsNewEntry(true);
-      setTimes({
-        start_time: null,
-        start_time_input: "",
-        pause_start: null,
-        pause_start_input: "",
-        pause_end: null,
-        pause_end_input: "",
-        end_time: null,
-        end_time_input: "",
-      });
+      resetForm();
       await calculateMonthlyTotal();
-      triggerRefresh(); // Déclencher la mise à jour
+      triggerRefresh();
     } catch (error) {
       console.error("Error deleting entry:", error);
     }

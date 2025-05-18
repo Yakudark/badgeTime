@@ -86,7 +86,7 @@ export const getMonthEntries = async (yearMonth) => {
     try {
         const db = await initDB();
         const result = await db.getAllAsync(
-            "SELECT * FROM working_hours WHERE date LIKE ? || '%' ORDER BY date ASC;",
+            `SELECT * FROM working_hours WHERE date LIKE ? || '%' ORDER BY date ASC;`,
             [yearMonth]
         );
         return result;
