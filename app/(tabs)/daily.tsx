@@ -5,6 +5,7 @@ import moment from "moment";
 import "moment/locale/fr";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   ScrollView,
   Text,
   TextInput,
@@ -17,10 +18,12 @@ import {
   formatTimeInput,
 } from "../../src/utils/timeCalculations";
 
-moment.locale("fr"); // Configuration de moment en français
+moment.locale("fr");
 
-const Daily = () => {
+export default function Daily() {
   const [currentDate] = useState(moment());
+  const [isEditing, setIsEditing] = useState(false);
+  const [isNewEntry, setIsNewEntry] = useState(true);
   const [times, setTimes] = useState({
     start_time: null,
     start_time_input: "",
@@ -41,7 +44,7 @@ const Daily = () => {
     deltaTime: "00:00",
   });
 
-  const monthlyOvertime = "12:30"; // Fictif
+  const monthlyOvertime = "12:30";
 
   useEffect(() => {
     setCalculations(calculateTimes(times));
@@ -70,18 +73,40 @@ const Daily = () => {
   };
 
   const handleValidate = () => {
-    // TODO: Implémenter la validation
-    console.log("Validation des données");
+    console.log("Validation temporaire");
+    setIsEditing(false);
   };
 
   const handleEdit = () => {
-    // TODO: Implémenter la modification
-    console.log("Modification des données");
+    setIsEditing(true);
   };
 
   const handleDelete = () => {
-    // TODO: Implémenter la suppression
-    console.log("Suppression des données");
+    Alert.alert(
+      "Confirmation",
+      "Voulez-vous vraiment supprimer cette journée ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: () => {
+            console.log("Suppression temporaire");
+            setIsNewEntry(true);
+            setTimes({
+              start_time: null,
+              start_time_input: "",
+              pause_start: null,
+              pause_start_input: "",
+              pause_end: null,
+              pause_end_input: "",
+              end_time: null,
+              end_time_input: "",
+            });
+          },
+        },
+      ]
+    );
   };
 
   const labels = {
@@ -101,7 +126,6 @@ const Daily = () => {
         contentContainerClassName="p-8 pb-12"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section - Style Steampunk */}
         <BlurView
           intensity={steampunkTheme.components.card.blur}
           className={`${steampunkTheme.components.card.base} mb-10 p-6`}
@@ -123,7 +147,6 @@ const Daily = () => {
           </View>
         </BlurView>
 
-        {/* Time Inputs Section - Style Steampunk */}
         <BlurView
           intensity={steampunkTheme.components.card.blur}
           className={`${steampunkTheme.components.card.base} mb-10 p-6`}
@@ -151,6 +174,7 @@ const Daily = () => {
                       onChangeText={(text) => handleTimeInput(key, text)}
                       keyboardType="numeric"
                       maxLength={5}
+                      editable={isEditing || isNewEntry}
                     />
                   </LinearGradient>
                 </View>
@@ -158,7 +182,6 @@ const Daily = () => {
           </View>
         </BlurView>
 
-        {/* Calculations Section - Style Steampunk */}
         <BlurView
           intensity={steampunkTheme.components.card.blur}
           className={`${steampunkTheme.components.card.base} p-6 mb-6`}
@@ -167,7 +190,6 @@ const Daily = () => {
             Calculs mécaniques
           </Text>
           <View className="space-y-6">
-            {/* Temps sections with steampunk gradients */}
             <LinearGradient
               colors={["rgba(205,128,50,0.15)", "rgba(205,128,50,0.0)"]}
               className="rounded-xl p-3 border border-[#CD8032]/30"
@@ -230,7 +252,6 @@ const Daily = () => {
               </View>
             </LinearGradient>
 
-            {/* Delta Time - Steampunk effect */}
             <LinearGradient
               colors={[
                 calculations.deltaTime.startsWith("-")
@@ -272,14 +293,13 @@ const Daily = () => {
           </View>
         </BlurView>
 
-        {/* Boutons de contrôle */}
         <View className="space-y-6">
           <TouchableOpacity
             onPress={handleValidate}
             className="bg-[#CD8032] rounded-xl p-5 items-center"
           >
             <Text className="text-white font-bold text-lg uppercase tracking-wider">
-              Valider
+              {isEditing || isNewEntry ? "Valider" : "Sauvegarder"}
             </Text>
           </TouchableOpacity>
 
@@ -308,6 +328,4 @@ const Daily = () => {
       </ScrollView>
     </LinearGradient>
   );
-};
-
-export default Daily;
+}

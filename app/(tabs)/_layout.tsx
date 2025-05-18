@@ -51,9 +51,8 @@ const _layout = () => {
         name="daily"
         options={{
           title: "Journalier",
-          headerShown: false,
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="calendar-today" size={24} color={color} />
+            <MaterialIcons name="today" size={24} color={color} />
           ),
         }}
       />
