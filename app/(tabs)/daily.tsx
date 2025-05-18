@@ -5,14 +5,21 @@ import moment from "moment";
 import "moment/locale/fr";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useWorkEntries } from "../../src/context/WorkEntriesContext";
 import { steampunkTheme } from "../../src/theme/steampunk";
+import {
+  deleteEntry,
+  getEntryByDate,
+  getMonthlyTotal,
+  initDB,
+  saveEntry,
+} from "../../src/utils/database";
 import {
   calculateTimes,
   formatTimeInput,
@@ -21,6 +28,7 @@ import {
 moment.locale("fr");
 
 export default function Daily() {
+  const { triggerRefresh } = useWorkEntries();
   const [currentDate] = useState(moment());
   const [isEditing, setIsEditing] = useState(false);
   const [isNewEntry, setIsNewEntry] = useState(true);
@@ -44,11 +52,87 @@ export default function Daily() {
     deltaTime: "00:00",
   });
 
-  const monthlyOvertime = "12:30";
+  const [monthlyOvertime, setMonthlyOvertime] = useState("00:00");
 
   useEffect(() => {
     setCalculations(calculateTimes(times));
   }, [times]);
+
+  const calculateMonthlyTotal = async () => {
+    try {
+      const yearMonth = currentDate.format("YYYY-MM");
+      const entries = await getMonthlyTotal(yearMonth);
+
+      const totalMinutes = entries.reduce((acc, entry) => {
+        const times = {
+          start_time: entry.start_time
+            ? moment(entry.start_time, "HH:mm")
+            : null,
+          pause_start: entry.pause_start
+            ? moment(entry.pause_start, "HH:mm")
+            : null,
+          pause_end: entry.pause_end ? moment(entry.pause_end, "HH:mm") : null,
+          end_time: entry.end_time ? moment(entry.end_time, "HH:mm") : null,
+        };
+        const dayCalculations = calculateTimes(times);
+        const deltaStr = dayCalculations.deltaTime.replace(/[+]/g, "");
+        const [hours, minutes] = deltaStr
+          .split(":")
+          .map((num) => parseInt(num));
+        const deltaMinutes = hours * 60 + minutes;
+
+        return (
+          acc +
+          (dayCalculations.deltaTime.startsWith("-")
+            ? -deltaMinutes
+            : deltaMinutes)
+        );
+      }, 0);
+
+      setMonthlyOvertime(
+        `${totalMinutes >= 0 ? "+" : ""}${Math.floor(
+          Math.abs(totalMinutes) / 60
+        )}:${String(Math.abs(totalMinutes) % 60).padStart(2, "0")}`
+      );
+    } catch (error) {
+      console.error("Error calculating monthly total:", error);
+    }
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await initDB();
+        await calculateMonthlyTotal();
+        const dateStr = currentDate.format("YYYY-MM-DD");
+        const entry = await getEntryByDate(dateStr);
+
+        if (entry) {
+          setIsNewEntry(false);
+          setTimes({
+            start_time: entry.start_time
+              ? moment(entry.start_time, "HH:mm")
+              : null,
+            start_time_input: entry.start_time || "",
+            pause_start: entry.pause_start
+              ? moment(entry.pause_start, "HH:mm")
+              : null,
+            pause_start_input: entry.pause_start || "",
+            pause_end: entry.pause_end
+              ? moment(entry.pause_end, "HH:mm")
+              : null,
+            pause_end_input: entry.pause_end || "",
+            end_time: entry.end_time ? moment(entry.end_time, "HH:mm") : null,
+            end_time_input: entry.end_time || "",
+          });
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const handleTimeInput = (type, value) => {
     const formattedTime = formatTimeInput(value);
@@ -72,41 +156,43 @@ export default function Daily() {
     }));
   };
 
-  const handleValidate = () => {
-    console.log("Validation temporaire");
-    setIsEditing(false);
+  const handleValidate = async () => {
+    try {
+      const dateStr = currentDate.format("YYYY-MM-DD");
+      await saveEntry(dateStr, times);
+      setIsEditing(false);
+      setIsNewEntry(false);
+      await calculateMonthlyTotal();
+      triggerRefresh(); // Déclencher la mise à jour
+    } catch (error) {
+      console.error("Error saving data:", error);
+    }
   };
 
   const handleEdit = () => {
     setIsEditing(true);
   };
 
-  const handleDelete = () => {
-    Alert.alert(
-      "Confirmation",
-      "Voulez-vous vraiment supprimer cette journée ?",
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Supprimer",
-          style: "destructive",
-          onPress: () => {
-            console.log("Suppression temporaire");
-            setIsNewEntry(true);
-            setTimes({
-              start_time: null,
-              start_time_input: "",
-              pause_start: null,
-              pause_start_input: "",
-              pause_end: null,
-              pause_end_input: "",
-              end_time: null,
-              end_time_input: "",
-            });
-          },
-        },
-      ]
-    );
+  const handleDelete = async () => {
+    try {
+      const dateStr = currentDate.format("YYYY-MM-DD");
+      await deleteEntry(dateStr);
+      setIsNewEntry(true);
+      setTimes({
+        start_time: null,
+        start_time_input: "",
+        pause_start: null,
+        pause_start_input: "",
+        pause_end: null,
+        pause_end_input: "",
+        end_time: null,
+        end_time_input: "",
+      });
+      await calculateMonthlyTotal();
+      triggerRefresh(); // Déclencher la mise à jour
+    } catch (error) {
+      console.error("Error deleting entry:", error);
+    }
   };
 
   const labels = {
@@ -130,20 +216,54 @@ export default function Daily() {
           intensity={steampunkTheme.components.card.blur}
           className={`${steampunkTheme.components.card.base} mb-10 p-6`}
         >
-          <View className="flex-row justify-between items-center">
-            <View>
-              <Text className="text-[#CD8032] text-sm uppercase tracking-widest">
-                Cumul mensuel du
-              </Text>
-              <Text className="text-[#B87333] text-base mt-1">
-                {currentDate.format("DD MMMM YYYY").toUpperCase()}
-              </Text>
-            </View>
-            <View className="flex-row items-baseline">
-              <Text className="text-[#FFC107] text-4xl font-bold">
+          <View>
+            <View className="flex-row justify-between items-center mb-4">
+              <View>
+                <Text className="text-[#CD8032] text-sm uppercase tracking-widest">
+                  Cumul mensuel du
+                </Text>
+                <Text className="text-[#B87333] text-base mt-1">
+                  {currentDate.format("DD MMMM YYYY").toUpperCase()}
+                </Text>
+              </View>
+              <Text
+                className={`text-4xl font-bold ${
+                  monthlyOvertime.startsWith("-")
+                    ? "text-red-500"
+                    : "text-[#FFC107]"
+                }`}
+              >
                 {monthlyOvertime}
               </Text>
             </View>
+
+            {!isEditing && !isNewEntry && (
+              <View className="flex-row gap-4 mt-2">
+                <TouchableOpacity
+                  onPress={handleEdit}
+                  className="flex-1 bg-[#3D2317] rounded-lg py-2 px-3 flex-row items-center justify-center border border-[#CD8032]/30"
+                >
+                  <MaterialIcons name="edit" size={16} color="#CD8032" />
+                  <Text className="text-[#CD8032] font-bold ml-2 text-sm uppercase">
+                    Modifier
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleDelete}
+                  className="flex-1 bg-[#3D2317] rounded-lg py-2 px-3 flex-row items-center justify-center border border-red-500/30"
+                >
+                  <MaterialIcons
+                    name="delete-outline"
+                    size={16}
+                    color="#DC2626"
+                  />
+                  <Text className="text-red-500 font-bold ml-2 text-sm uppercase">
+                    Supprimer
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </BlurView>
 
@@ -294,36 +414,16 @@ export default function Daily() {
         </BlurView>
 
         <View className="space-y-6">
-          <TouchableOpacity
-            onPress={handleValidate}
-            className="bg-[#CD8032] rounded-xl p-5 items-center"
-          >
-            <Text className="text-white font-bold text-lg uppercase tracking-wider">
-              {isEditing || isNewEntry ? "Valider" : "Sauvegarder"}
-            </Text>
-          </TouchableOpacity>
-
-          <View className="flex-row gap-8">
+          {(isEditing || isNewEntry) && (
             <TouchableOpacity
-              onPress={handleEdit}
-              className="bg-[#3D2317] flex-1 rounded-xl p-5 flex-row items-center justify-center border border-[#CD8032]/30"
+              onPress={handleValidate}
+              className="bg-[#CD8032] rounded-xl p-5 items-center"
             >
-              <MaterialIcons name="edit" size={20} color="#CD8032" />
-              <Text className="text-[#CD8032] font-bold ml-2 uppercase tracking-wider">
-                Modifier
+              <Text className="text-white font-bold text-lg uppercase tracking-wider">
+                {isNewEntry ? "Valider" : "Mettre à jour"}
               </Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleDelete}
-              className="bg-[#3D2317] flex-1 rounded-xl p-5 flex-row items-center justify-center border border-red-500/30"
-            >
-              <MaterialIcons name="delete-outline" size={20} color="#DC2626" />
-              <Text className="text-red-500 font-bold ml-2 uppercase tracking-wider">
-                Supprimer
-              </Text>
-            </TouchableOpacity>
-          </View>
+          )}
         </View>
       </ScrollView>
     </LinearGradient>
