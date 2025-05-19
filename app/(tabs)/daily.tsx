@@ -5,6 +5,7 @@ import moment from "moment";
 import "moment/locale/fr";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   ScrollView,
   Text,
   TextInput,
@@ -194,15 +195,32 @@ export default function Daily() {
   };
 
   const handleDelete = async () => {
-    try {
-      const dateStr = currentDate.format("YYYY-MM-DD");
-      await deleteEntry(dateStr);
-      resetForm();
-      await calculateMonthlyTotal();
-      triggerRefresh();
-    } catch (error) {
-      console.error("Error deleting entry:", error);
-    }
+    Alert.alert(
+      "Confirmation",
+      "Voulez-vous vraiment supprimer cette entrée ?",
+      [
+        {
+          text: "Annuler",
+          style: "cancel",
+        },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const dateStr = currentDate.format("YYYY-MM-DD");
+              await deleteEntry(dateStr);
+              resetForm();
+              await calculateMonthlyTotal();
+              triggerRefresh();
+            } catch (error) {
+              console.error("Error deleting entry:", error);
+              Alert.alert("Erreur", "Impossible de supprimer l'entrée");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const labels = {

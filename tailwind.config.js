@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./app/**/*.{js,jsx,ts,tsx}", "./components/**/*.{js,jsx,ts,tsx}"],
+  content: ["./app/**/*.{js,jsx,ts,tsx}", "./src/**/*.{js,jsx,ts,tsx}"],
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
@@ -17,6 +17,9 @@ module.exports = {
           200: "#0F0D23",
         },
         accent: "#AB8BFF",
+      },
+      fontFamily: {
+        sans: ['VictorianParlor', 'System'], // Définit la police par défaut pour tous les textes
       },
     },
   },

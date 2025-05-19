@@ -38,6 +38,11 @@ export const steampunkTheme = {
     },
   },
   typography: {
+    fonts: {
+      steampunk: "VictorianParlor",  // Police principale style steampunk
+      display: "VictorianParlor",    // Pour les titres et gros textes
+      body: "System",                // Pour le texte normal
+    },
     sizes: {
       xs: 12,
       sm: 14,
