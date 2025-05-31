@@ -1,20 +1,38 @@
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import moment from "moment";
+import "moment/locale/fr";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
-import { Calendar } from "react-native-calendars";
+import { Calendar, LocaleConfig } from "react-native-calendars";
+import { DayEditModal } from "../../src/components/DayEditModal";
 import { useWorkEntries } from "../../src/context/WorkEntriesContext";
 import { steampunkTheme } from "../../src/theme/steampunk";
-import { getMonthlyTotal, initDB } from "../../src/utils/database";
+import {
+  getEntryByDate,
+  getMonthlyTotal,
+  initDB,
+} from "../../src/utils/database";
 import { calculateTimes } from "../../src/utils/timeCalculations";
+
+// Configurer le calendrier en français
+LocaleConfig.locales["fr"] = {
+  monthNames: moment.months(),
+  monthNamesShort: moment.monthsShort(),
+  dayNames: moment.weekdays(),
+  dayNamesShort: moment.weekdaysShort(),
+  today: "Aujourd'hui",
+};
+LocaleConfig.defaultLocale = "fr";
 
 const Annual = () => {
   const [currentDate] = useState(moment());
   const [markedDates, setMarkedDates] = useState({});
   const [yearlyTotal, setYearlyTotal] = useState("00:00");
   const [isLoading, setIsLoading] = useState(true);
-  const { shouldRefresh } = useWorkEntries();
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const { shouldRefresh, triggerRefresh } = useWorkEntries();
 
   const loadYearData = async () => {
     try {
@@ -103,6 +121,33 @@ const Annual = () => {
     };
   }, [currentDate, shouldRefresh]);
 
+  const handleDayPress = async (day) => {
+    try {
+      await initDB();
+      const entry = await getEntryByDate(day.dateString);
+
+      const preparedEntry = {
+        id: entry?.id || null,
+        date: day.dateString,
+        start_time: entry?.start_time || null,
+        end_time: entry?.end_time || null,
+        pause_start: entry?.pause_start || null,
+        pause_end: entry?.pause_end || null,
+      };
+
+      setSelectedDay(preparedEntry);
+      setModalVisible(true);
+    } catch (error) {
+      console.error("Error getting entry:", error);
+    }
+  };
+
+  const handleSave = async () => {
+    await loadYearData();
+    triggerRefresh();
+    setModalVisible(false);
+  };
+
   if (isLoading) {
     return (
       <LinearGradient
@@ -142,25 +187,40 @@ const Annual = () => {
           intensity={steampunkTheme.components.card.blur}
           className={`${steampunkTheme.components.card.base}`}
         >
-          <Calendar
-            current={currentDate.format("YYYY-MM-DD")}
-            markedDates={markedDates}
-            enableSwipeMonths
-            hideArrows={false}
-            theme={{
-              calendarBackground: "transparent",
-              textSectionTitleColor: "#CD8032",
-              selectedDayBackgroundColor: "#CD8032",
-              selectedDayTextColor: "#ffffff",
-              todayTextColor: "#FFC107",
-              dayTextColor: "#B87333",
-              textDisabledColor: "#614126",
-              monthTextColor: "#CD8032",
-              textMonthFontWeight: "bold",
-              arrowColor: "#CD8032",
-            }}
-          />
+          <View className="overflow-hidden rounded-xl border border-[#CD8032]/30">
+            <Calendar
+              current={currentDate.format("YYYY-MM-DD")}
+              firstDay={1}
+              onDayPress={handleDayPress}
+              markedDates={markedDates}
+              theme={{
+                backgroundColor: "#2C1810",
+                calendarBackground: "#2C1810",
+                monthTextColor: "#CD8032",
+                textSectionTitleColor: "#CD8032",
+                selectedDayBackgroundColor: "#CD8032",
+                selectedDayTextColor: "#ffffff",
+                todayTextColor: "#FFC107",
+                dayTextColor: "#B87333",
+                textDisabledColor: "#614126",
+                dotColor: "#CD8032",
+                selectedDotColor: "#ffffff",
+                arrowColor: "#CD8032",
+                textDayFontWeight: "300",
+                textMonthFontWeight: "bold",
+                textDayHeaderFontWeight: "500",
+              }}
+            />
+          </View>
         </BlurView>
+
+        <DayEditModal
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+          date={selectedDay?.date}
+          entry={selectedDay}
+          onSave={handleSave}
+        />
       </ScrollView>
     </LinearGradient>
   );

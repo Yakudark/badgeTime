@@ -199,6 +199,7 @@ export default function Index() {
           </View>
         </BlurView>
 
+        {/* Garder uniquement le calendrier manuel et supprimer le CustomCalendar */}
         <BlurView
           intensity={steampunkTheme.components.card.blur}
           className={`${steampunkTheme.components.card.base} mb-6 p-4`}
